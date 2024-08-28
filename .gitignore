@@ -1,0 +1,71 @@
+# Compiled source #
+*.class
+*/bin/*
+
+# Eclipse files
+.project
+.classpath
+.settings
+.metadata
+
+# IntelliJ IDEA files
+.idea
+*.iws
+*.ipr
+*.iml
+*.patch
+
+# Test output files
+*/test-output/*
+/test-output/
+/test-output
+test-output/
+test-output/**/*
+*/test-output/**/*
+test_results
+
+# Packages
+*.jar
+*.tar.gz
+*.tgz
+*.egg-info
+
+# Maven build files
+target
+reports
+**/dependency-reduced-pom.xml
+
+# PMD
+.pmd
+
+# Merge files
+*.orig
+
+#tmp directories
+tmp/
+test-output/
+
+#BOB Files
+.project_*
+*helm-target
+
+# Helm Files
+requirements.lock
+charts/*/charts/
+
+# Python files
+__pycache__/
+*.pyc
+
+# venv
+venv/
+
+# deployment manager build files
+deployment_manager/build
+
+# dev test results
+dev/results/
+
+# temporary files created in the functional tests
+testsuite/deployment-manager-functional-tests/tmp/
+testsuite/deployment-manager-functional-tests/certificates/

@@ -1,0 +1,36 @@
+global:
+  hosts:
+    pf: fakehostname.com
+    iam: fakehostname.com
+    gas: fakehostname.com
+  registry:
+    username: "USERNAME_REPLACE"
+    password: "PASSWORD_REPLACE"
+
+system-user:
+  credentials:
+    username: "system-user"
+    password: "Ericsson123!"
+
+gas:
+  defaultUser:
+    username: "gas-user"
+    password: "Ericsson123!"
+
+eric-sec-access-mgmt:
+  ingress:
+    hostname: fakehostname.com
+
+eric-oss-pf:
+  defaultUser:
+    username: "pf-user"
+    password: "Ericsson123!"
+
+tags:
+  pf: true
+
+eric-tm-ingress-controller-cr:
+  service:
+    loadBalancerIP: "0.0.0.0"
+    externalTrafficPolicy: "Local"
+  ingressClass: "dummy"

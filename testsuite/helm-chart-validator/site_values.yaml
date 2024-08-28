@@ -1,0 +1,64 @@
+global:
+  hosts:
+    so: "so.dummy.hostname.com"
+    uds: "uds.dummy.hostname.com"
+    iam: "keycloak.dummy.hostname.com"
+    pf: "pf.dummy.hostname.com"
+    gas: "gas.dummy.hostname.com"
+  registry:
+    url: "registry.dummy.hostname.com"
+    username: "admin"
+    password: "ericsson"
+    pullSecret: "dummy-pull-secret"
+  support:
+    ipv6:
+      enabled: false
+  timezone: UTC
+  pullSecret: "dummy-pull-secret"
+  ingressClass: "oss_iccr"
+  iccrAppIngresses: true
+
+system-user:
+  credentials:
+    username: "system-user"
+    password: "Ericsson123!"
+
+tags:
+  so: true
+  pf: true
+  uds: true
+  platform: true
+
+eric-tm-ingress-controller-cr:
+  service:
+    loadBalancerIP: "127.0.0.1"
+    externalTrafficPolicy: "Local"
+  ingressClass: "oss_iccr"
+
+gas:
+  defaultUser:
+    username: "adp-user"
+    password: "Ericsson123!"
+
+eric-sec-access-mgmt:
+  ingress:
+    hostname: "keycloak.dummy.hostname.com"
+
+eric-adp-gui-aggregator-service:
+  imageCredentials:
+    pullSecret: "dummy-pull-secret"
+
+eric-eo-so:
+  defaultUser:
+    username: "so-user"
+    password: "Ericsson123!"
+
+eric-oss-pf:
+  defaultUser:
+    username: "pf-user"
+    password: "Ericsson123!"
+
+eric-ctrl-bro:
+  persistence:
+    persistentVolumeClaim:
+      size: "20Gi"

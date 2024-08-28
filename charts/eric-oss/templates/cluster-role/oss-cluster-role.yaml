@@ -1,0 +1,52 @@
+{{ if ( eq .Values.global.createClusterRoles true ) -}}
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ template "eric-oss.release.name" . }}-allowed-use-privileged-policy
+  labels:
+  {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+  {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+rules:
+  - apiGroups:
+      - security.openshift.io
+    resources:
+      - securitycontextconstraints
+    resourceNames:
+      - privileged
+    verbs:
+      - use
+# Rule to allow priveleged use in kubernetes, required when enabling
+  - apiGroups:
+      - policy
+    resources:
+      - podsecuritypolicies
+    resourceNames:
+      - privileged
+    verbs:
+      - use
+{{ end }}
+{{- $clusterRole := (lookup "rbac.authorization.k8s.io/v1" "ClusterRole" .Release.Namespace (printf "%s-%s" .Release.Name "allowed-use-privileged-policy")) -}}
+{{ if and ( eq .Values.global.createClusterRoles false ) ( not $clusterRole ) ( ne .Release.Name "RELEASE-NAME" ) -}}
+{{ required "A clusterRole with name eric-eo-<NAMESPACE_NAME>-allowed-use-privileged-policy is required when global.createClusterRoles is false" .Values.clusterRoleNotExists}}
+{{ else if and ( eq .Values.global.createClusterRoles false ) ( $clusterRole ) -}}
+  {{- $validSCCRuleValuesExist := false -}}
+  {{- $validPSPRuleValuesExist := false -}}
+  {{- range $ruleObj := $clusterRole.rules -}}
+    {{ if and (hasKey $ruleObj "apiGroups") (hasKey $ruleObj "resources") (hasKey $ruleObj "resourceNames") (hasKey $ruleObj "verbs") }}
+      {{- $valuesInNestedLists := values $ruleObj | toString -}}
+      {{- $valuesAsString := "" | regexReplaceAll "[[\\]]" $valuesInNestedLists -}}
+      {{- $valuesInList := regexSplit " " $valuesAsString -1 -}}
+      {{ if and (has "security.openshift.io" $valuesInList) (has "securitycontextconstraints" $valuesInList) (has "privileged" $valuesInList) (has "use" $valuesInList) }}
+        {{- $validSCCRuleValuesExist = true -}}
+      {{ else if and (has "policy" $valuesInList) (has "podsecuritypolicies" $valuesInList) (has "privileged" $valuesInList) (has "use" $valuesInList) }}
+        {{- $validPSPRuleValuesExist = true -}}
+      {{ end }}
+    {{ end }}
+  {{ end }}
+  {{ if and ($validSCCRuleValuesExist) ($validPSPRuleValuesExist) }}
+    {{ $clusterRole | toYaml }}
+  {{ else }}
+    {{ required (printf "Value Error: Invalid/missing value(s) for privileged clusterRole rules in clusterRole: %s" $clusterRole.metadata.name) nil }}
+  {{ end }}
+{{ end }}

@@ -1,0 +1,98 @@
+#
+# COPYRIGHT Ericsson 2020
+#
+#
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Inc. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+#
+
+{{ if .Values.global.networkPolicy.enabled -}}
+{{ $backup := include "eric-oss.backup-controller.enabled" . }}
+{{ if eq $backup "true" -}}
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: {{ template "eric-oss.name" . }}-ctrl-bro-limit-internal-traffic
+  labels:
+  {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+  {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: eric-ctrl-bro
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: eric-eo-api-gateway
+    - podSelector:
+        matchLabels:
+          app: eric-eo-cm-database-pg-bragent
+    - podSelector:
+        matchLabels:
+          app: eric-eo-eai-database-pg-bragent
+    - podSelector:
+        matchLabels:
+          app: eric-oss-notification-service-database-pg-bragent
+    - podSelector:
+        matchLabels:
+          app: toscao-database-pg-bragent
+    - podSelector:
+        matchLabels:
+          app: eric-eo-workflow-database-pg-bragent
+    - podSelector:
+        matchLabels:
+          app: idam-database-pg-bragent
+    - podSelector:
+        matchLabels:
+          app: eric-eo-subsystem-management-database-pg-bragent
+    - podSelector:
+        matchLabels:
+          app: eric-eo-cm-database-pg
+    - podSelector:
+        matchLabels:
+          app: eric-eo-eai-database-pg
+    - podSelector:
+        matchLabels:
+          app: toscao-database-pg
+    - podSelector:
+        matchLabels:
+          app: eric-eo-workflow-database-pg
+    - podSelector:
+        matchLabels:
+          app: idam-database-pg-bragent
+    - podSelector:
+        matchLabels:
+          app: eric-eo-subsystem-management-database-pg
+    - podSelector:
+        matchLabels:
+          app: eric-eo-workflow
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: eric-ctrl-bro
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: eric-data-search-engine-agent
+    - podSelector:
+        matchLabels:
+          app: eric-eo-common-br-agent
+    - podSelector:
+        matchLabels:
+          app: eric-oss-common-postgres-bragent
+    - podSelector:
+        matchLabels:
+          app: eric-data-wide-column-database-cd
+    - podSelector:
+        matchLabels:
+          app: eric-data-wide-column-database-cd-bra
+{{- end }}
+{{- end }}

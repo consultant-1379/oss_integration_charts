@@ -1,0 +1,31 @@
+{{- if .Values.global.networkPolicy.enabled -}}
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: {{ template "eric-oss.name" . }}-eai-limit-internal-traffic
+  labels:
+  {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+  {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: eric-eo-eai
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: eric-eo-eai-adapter
+    - podSelector:
+        matchLabels:
+          app: eric-eo-ipaddress-manager
+    - podSelector:
+        matchLabels:
+          app: eric-eo-service-checker
+    - podSelector:
+        matchLabels:
+          app: eric-eo-workflow
+    - podSelector:
+        matchLabels:
+          app: eric-eo-engine
+{{- end }}

@@ -1,0 +1,17 @@
+{{- if .Values.global.networkPolicy.enabled -}}
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: {{ template "eric-oss.name" . }}-data-message-bus-kf-allow-external-traffic
+  labels:
+    chart: {{ template "eric-oss.chart" . }}
+  {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+  {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: eric-data-message-bus-kf
+  ingress:
+  - {}
+{{- end }}

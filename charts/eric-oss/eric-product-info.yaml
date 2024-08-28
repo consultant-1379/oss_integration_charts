@@ -1,0 +1,17 @@
+productName: "OSS Integration Chart"
+productNumber: "TBC"
+images:
+  keycloakClient:
+    productName: "Identity Access Management"
+    productNumber: "TBC"
+    registry: "armdocker.rnd.ericsson.se"
+    repoPath: "proj-orchestration-so"
+    name: "keycloak-client"
+    tag: "1.0.0-17"
+  gasPatcher:
+    productName: "GUI Aggregator Service"
+    productNumber: "TBC"
+    registry: "armdocker.rnd.ericsson.se"
+    repoPath: "proj-orchestration-so"
+    name: "gas-patcher"
+    tag: "1.0.0-8"

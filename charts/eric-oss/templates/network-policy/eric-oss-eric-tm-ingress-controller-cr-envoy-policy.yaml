@@ -1,0 +1,34 @@
+#
+# COPYRIGHT Ericsson 2021
+#
+#
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Inc. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+#
+
+{{ if .Values.global.networkPolicy.enabled -}}
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: {{ template "eric-oss.name" . }}-eric-tm-ingress-controller-cr-envoy-limit-internal-traffic
+  labels:
+  {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+  {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+spec:
+  ingress:
+  - {}
+  podSelector:
+    matchLabels:
+      app: eric-tm-ingress-controller-cr-envoy
+  policyTypes:
+  - Ingress
+{{- end }}

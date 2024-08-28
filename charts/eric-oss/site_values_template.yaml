@@ -1,0 +1,88 @@
+global:
+  hosts:
+    so: ""
+    iam: ""
+    pf: ""
+    uds: ""
+    gr: ""
+    gas: ""
+  registry:
+    # If deploying from the director node on a CCD environment, the url can be retrieved using:
+    # kubectl get ingress eric-lcm-container-registry-ingress -n kube-system -o jsonpath="{.spec.tls[*].hosts[0]}"; echo
+    url: ""
+    #
+    # If deploying on a CCD environment with version < 2.7.0 credentials are stored as Kubernetes secrets in kube-system namespace.
+    # The username can be retrieved using the following command
+    # kubectl get secrets cr-registry-credentials -n kube-system -o jsonpath="{.data.custom-user}" | base64 -d; echo
+    #
+    # If deploying on a CCD environment with version >= 2.7.0 credentials are encrypted with htpasswd automatically, and can be retrieved using the following Openstack command
+    # openstack stack output show "stack-name" container_registry_custom_user_id -f json | jq '.output_value' -M -r
+    username: ""
+    #
+    # If deploying on a CCD environment with version < 2.7.0 credentials are stored as Kubernetes secrets in kube-system namespace.
+    # The password can be retrieved using the following command
+    # kubectl get secrets cr-registry-credentials -n kube-system -o jsonpath="{.data.custom-pass}" | base64 -d; echo
+    #
+    # If deploying on a CCD environment with version >= 2.7.0 credentials are encrypted with htpasswd automatically, and can be retrieved using the following Openstack command
+    # openstack stack output show "stack-name" container_registry_custom_pw -f json | jq '.output_value' -M -r
+    password: ""
+  support:
+    ipv6:
+      enabled: false
+  timezone: UTC
+  createClusterRoles: true
+
+system-user:
+  credentials:
+    username: ""
+    password: ""
+
+# Warning! If changing these application tags from true to false and that application
+# is already installed, then that application will be removed and data will be lost!
+tags:
+  so: false
+  pf: false
+  uds: false
+  platform: false
+
+# This is the same as the global.iam hostname
+eric-sec-access-mgmt:
+  ingress:
+    hostname: ""
+  statefulset:
+    replicas: 2
+
+# Fill only if deploying EO Service Orchestration (EO SO)
+eric-eo-so:
+  defaultUser:
+    username: ""
+    password: ""
+
+# Fill only if deploying EO PF Orchestration (EO PF)
+eric-oss-pf:
+  defaultUser:
+    username: ""
+    password: ""
+
+# Fill only if deploying EO UDS Orchestration (EO UDS)
+eric-oss-uds:
+  defaultUser:
+    username: ""
+    password: ""
+
+gas:
+  defaultUser:
+    username: ""
+    password: ""
+# Please refer to the dimensioning guide for the appropriate size of the BRO volume
+# The size will be dependent on which applications are being deployed
+eric-ctrl-bro:
+  persistence:
+    persistentVolumeClaim:
+      size: "20Gi"
+
+eric-data-search-engine:
+  service:
+    network:
+      protocol:
+        IPv6: false

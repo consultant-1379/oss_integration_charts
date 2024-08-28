@@ -1,0 +1,35 @@
+{{- if eq (include "eric-oss.backup-controller.enabled" .) "true" -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name:  eric-eo-common-br-agent-runtime-config
+  labels:
+    {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+    {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+data:
+  application.yml: |
+    eo-services:
+      {{- range $key, $value := .Values.tags -}}
+      {{- if and (eq $key "so") (eq $value true) }}
+      rest-apis:
+        eai-adapter:
+          uri: http://eric-eo-eai-adapter
+          basePath: /eso/v1.0
+          wait-time: ${EAI_INITIAL_WAIT}
+          retry-attempts: ${EAI_HEALTHCHECK_RETRY_ATTEMPTS}
+          retry-backoff: ${EAI_HEALTHCHECK_RETRY_WAIT}
+      {{- end }}
+      {{- end }}
+      data-sources:
+        {{- range $key, $value := .Values.tags -}}
+        {{- if and (eq $key "so") (eq $value true) }}
+        so:
+          url: jdbc:postgresql://eric-eo-workflow-database-pg:5432/process-engine
+          username: ${SO_WF_DB_USER}
+          password: ${SO_WF_DB_PW}
+          retry-attempts: ${WF_DB_RETRY_ATTEMPTS}
+          retry-backoff: ${WF_DB_RETRY_WAIT}
+        {{- end }}
+        {{- end }}
+{{- end -}}

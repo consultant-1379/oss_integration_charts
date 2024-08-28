@@ -1,0 +1,17 @@
+{{ $keycloak := include "eric-oss.keycloak.enabled" . }}
+{{ if eq $keycloak "true" -}}
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: {{ template "eric-oss.name" . }}-update-realm-configuration-configmap
+  labels:
+    {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+    {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+data:
+  realm-configuration.json: |
+    {
+        "bruteForceProtected": "true",
+        "accessCodeLifespanLogin": 3600
+    }
+{{- end -}}

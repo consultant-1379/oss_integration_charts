@@ -1,0 +1,78 @@
+#
+# COPYRIGHT Ericsson 2019
+#
+#
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Inc. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+#
+{{ $metrics := include "eric-oss.eric-pm-server.enabled" . }}
+{{ if eq $metrics "true" -}}
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: {{ template "eric-oss.name" . }}-pm-server-rbac-configmap
+  labels:
+    {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+    {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+data:
+  eric-pm-server-rbac-configuration.json: |
+    {
+      "roles": [
+          {
+            "name": "MetricsViewer",
+            "attributes": {},
+            "composites": {
+              "realm": [],
+              "client": {}
+            }
+          }
+        ],
+      "authorization":
+      {
+        "resources": [
+          {
+            "name": "Metrics Viewer",
+            "ownerManagedAccess": false,
+            "displayName": "Metrics",
+            "attributes": {},
+            "uris": [
+               {{ template "eric-oss.metrics.rbac-resources" .}}
+            ]
+          }
+        ],
+        "policies": [
+          {
+            "name": "Metrics View Policy",
+            "description": "Policy for metrics that is based on role",
+            "type": "role",
+            "logic": "POSITIVE",
+            "decisionStrategy": "UNANIMOUS",
+            "config": {
+              "roles": "[{\"id\":\"MetricsViewer\",\"required\":false}]"
+            }
+          },
+          {
+            "name": "Metrics View Permission",
+            "description": "Permission to view metrics",
+            "type": "resource",
+            "logic": "POSITIVE",
+            "decisionStrategy": "UNANIMOUS",
+            "config": {
+              "resources": "[\"Metrics Viewer\"]",
+              "applyPolicies": "[\"Metrics View Policy\"]"
+            }
+          }
+        ],
+        "scopes": []
+      }
+    }
+{{- end -}}

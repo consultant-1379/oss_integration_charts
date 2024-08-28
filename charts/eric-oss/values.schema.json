@@ -1,0 +1,452 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": true,
+  "definitions": {
+    "imagePullPolicy": {
+      "type": "string",
+      "enum": [
+        "IfNotPresent",
+        "Always",
+        "Never"
+      ]
+    }
+  },
+  "properties": {
+    "tags": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "so": {
+          "type": "boolean"
+        },
+        "pf": {
+          "type": "boolean"
+        },
+        "uds": {
+          "type": "boolean"
+        },
+        "platform": {
+          "type": "boolean"
+        },
+        "adc": {
+          "type": "boolean"
+        },
+        "dmm": {
+          "type": "boolean"
+        },
+        "th": {
+          "type": "boolean"
+        },
+        "eas": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "so",
+        "pf",
+        "uds",
+        "platform"
+      ]
+    },
+    "global": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "networkPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "enabled"
+          ]
+        },
+        "registry": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\-]*[a-zA-Z0-9])\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\-]*[A-Za-z0-9])(:([1-9]|[1-8][0-9]|9[0-9]|[1-8][0-9]{2}|9[0-8][0-9]|99[0-9]|[1-8][0-9]{3}|9[0-8][0-9]{2}|99[0-8][0-9]|999[0-9]|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?$"
+            },
+            "username": {
+              "type": "string",
+              "minLength": 1
+            },
+            "password": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "url",
+            "username",
+            "password"
+          ]
+        },
+        "hosts": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "iam": {
+              "type": "string",
+              "format": "hostname"
+            },
+            "gas": {
+              "type": "string",
+              "format": "hostname"
+            }
+          },
+          "required": [
+            "iam",
+            "gas"
+          ]
+        },
+        "iam": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "clientId": {
+              "type": "string",
+              "minLength": 1,
+              "enum": ["eo"]
+            },
+            "userKey": {
+              "type": "string",
+              "minLength": 1,
+              "enum": ["kcadminid"]
+            },
+            "passwordKey": {
+              "type": "string",
+              "minLength": 1,
+              "enum": ["kcpasswd"]
+            },
+            "adminSecret": {
+              "type": "string",
+              "minLength": 1,
+              "enum": ["eric-sec-access-mgmt-creds"]
+            },
+            "cacert": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "secretName": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "filePath": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "secretName",
+                "key",
+                "filePath"
+              ]
+            }
+          },
+          "required": [
+            "clientId",
+            "userKey",
+            "passwordKey",
+            "adminSecret",
+            "cacert"
+          ]
+        },
+        "timezone": {
+          "type": "string",
+          "minLength": 1
+        },
+        "support": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "ipv6": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled"
+              ]
+            }
+          },
+          "required": [
+            "ipv6"
+          ]
+        },
+        "createClusterRoles": {
+          "type": "boolean"
+        },
+        "nodeSelector":{
+          "type": "object",
+          "minProperties":1,
+          "maxProperties":1,
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "registry",
+        "hosts",
+        "iam",
+        "timezone",
+        "createClusterRoles",
+        "support"
+      ]
+    },
+    "imageCredentials": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "keycloak-client": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "registry": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "format": "uri",
+                  "minLength": 1
+                },
+                "imagePullPolicy": {
+                  "$ref": "#/definitions/imagePullPolicy"
+                }
+              },
+              "required": [
+                "imagePullPolicy"
+              ]
+            },
+            "repoPath": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "registry",
+            "repoPath"
+          ]
+        },
+        "gas-patcher": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "registry": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "format": "uri",
+                  "minLength": 1
+                },
+                "imagePullPolicy": {
+                  "$ref": "#/definitions/imagePullPolicy"
+                }
+              },
+              "required": [
+                "imagePullPolicy"
+              ]
+            },
+            "repoPath": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "registry",
+            "repoPath"
+          ]
+        }
+      }
+    },
+    "eric-eo-api-gateway": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "iam": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kubernetesSecret": {
+              "type": "string",
+              "minLength": 1,
+              "enum": [
+                "eric-oss-iam-client-secret"
+              ]
+            },
+            "secretKey": {
+              "type": "string",
+              "minLength": 1,
+              "enum": ["clientSecret"]
+            },
+            "issuerPath": {
+              "type": "string",
+              "minLength": 1,
+              "enum": ["/auth/realms/master"]
+            },
+            "token": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "context": {
+                  "type": "string",
+                  "minLength": 1,
+                  "enum": ["/oauth2/auth/realms/*/protocol/openid-connect/token"]
+                }
+              },
+              "required": [
+                "context"
+              ]
+            },
+            "createIamClient": {
+              "type": "boolean",
+              "enum": [true]
+            }
+          },
+          "required": [
+            "kubernetesSecret",
+            "secretKey",
+            "issuerPath",
+            "token",
+            "createIamClient"
+          ]
+        }
+      },
+      "required": [
+        "iam"
+      ]
+    },
+    "eric-sec-access-mgmt": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "ingress": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "hostname": {
+              "type": "string",
+              "format": "hostname"
+            }
+          },
+          "required": [
+            "hostname"
+          ]
+        }
+      },
+      "required": [
+        "ingress"
+      ]
+    },
+    "gas": {
+      "type": "object",
+      "required": [
+        "defaultUser"
+      ],
+      "properties": {
+        "defaultUser": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "username": {
+              "type": "string",
+              "minLength": 1
+            },
+            "password": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "username",
+            "password"
+          ]
+        }
+      }
+    },
+    "eric-ctrl-bro": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "persistence": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "persistentVolumeClaim": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "size": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "size"
+              ]
+            }
+          },
+          "required": [
+            "persistentVolumeClaim"
+          ]
+        }
+      },
+      "required": [
+        "persistence"
+      ]
+    },
+    "system-user": {
+      "type": "object",
+      "required": [
+        "credentials"
+      ],
+      "properties": {
+        "credentials": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "username": {
+              "type": "string",
+              "minLength": 1
+            },
+            "password": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "username",
+            "password"
+          ]
+        }
+      }
+    }
+  },
+  "required": [
+    "tags",
+    "gas",
+    "global",
+    "imageCredentials",
+    "eric-sec-access-mgmt",
+    "eric-eo-api-gateway",
+    "eric-ctrl-bro"
+  ]
+}

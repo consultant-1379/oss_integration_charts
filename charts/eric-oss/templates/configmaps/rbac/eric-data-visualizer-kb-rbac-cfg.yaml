@@ -1,0 +1,78 @@
+#
+# COPYRIGHT Ericsson 2019
+#
+#
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Inc. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+#
+{{ $logging := include "eric-oss.logging.enabled" . }}
+{{ if eq $logging "true" -}}
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: {{ template "eric-oss.name" . }}-data-visualizer-kb-rbac-configmap
+  labels:
+    {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+    {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+data:
+  eric-data-visualizer-kb-rbac-configuration.json: |
+    {
+      "roles": [
+          {
+            "name": "LogViewer",
+            "attributes": {},
+            "composites": {
+              "realm": [],
+              "client": {}
+            }
+          }
+        ],
+      "authorization":
+      {
+        "resources": [
+          {
+            "name": "Log Viewer",
+            "ownerManagedAccess": false,
+            "displayName": "Logging",
+            "attributes": {},
+            "uris": [
+               {{ template "eric-oss.logging.rbac-resources" .}}
+            ]
+          }
+        ],
+        "policies": [
+          {
+            "name": "Log View Policy",
+            "description": "Policy for logging that is based on role",
+            "type": "role",
+            "logic": "POSITIVE",
+            "decisionStrategy": "UNANIMOUS",
+            "config": {
+              "roles": "[{\"id\":\"LogViewer\",\"required\":false}]"
+            }
+          },
+          {
+            "name": "Log View Permission",
+            "description": "Permission to view logs",
+            "type": "resource",
+            "logic": "POSITIVE",
+            "decisionStrategy": "UNANIMOUS",
+            "config": {
+              "resources": "[\"Log Viewer\"]",
+              "applyPolicies": "[\"Log View Policy\"]"
+            }
+          }
+        ],
+        "scopes": []
+      }
+    }
+{{- end -}}

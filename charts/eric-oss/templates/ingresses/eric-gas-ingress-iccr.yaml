@@ -1,0 +1,21 @@
+{{- if .Values.global.iccrAppIngresses }}
+apiVersion: projectcontour.io/v1
+kind: HTTPProxy
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: {{.Values.global.ingressClass | quote }}
+  labels:
+    {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  name: eric-adp-gui-aggregator-service-ingress-iccr
+spec:
+  virtualhost:
+    fqdn: {{ required "A valid .Values.global.hosts.gas entry required" .Values.global.hosts.gas }}
+    tls:
+      secretName: {{ required "A valid .Values.ingress.tls.secretName entry required" .Values.ingress.tls.secretName }}
+  routes:
+  - conditions:
+    - prefix: /
+    services:
+    - name: eric-oss-api-gateway
+      port: 80
+{{- end }}

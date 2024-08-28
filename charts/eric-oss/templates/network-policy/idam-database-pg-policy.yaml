@@ -1,0 +1,47 @@
+#
+# COPYRIGHT Ericsson 2019
+#
+#
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Inc. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+#
+
+{{ if .Values.global.networkPolicy.enabled -}}
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: {{ template "eric-oss.name" . }}-idam-database-pg-policy
+  labels:
+  {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+  {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: idam-database-pg
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: idam-database-pg
+    - podSelector:
+        matchLabels:
+          app: eric-sec-access-mgmt
+    - podSelector:
+        matchLabels:
+          app: eric-pm-server
+    - podSelector:
+        matchLabels:
+          app: idam-database-pg-bragent
+    - podSelector:
+        matchLabels:
+          app: eric-eo-service-checker
+{{- end }}

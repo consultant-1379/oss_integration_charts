@@ -1,0 +1,25 @@
+{{- if .Values.global.networkPolicy.enabled -}}
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: {{ template "eric-oss.name" . }}-data-coordinator-zk-allow-external-traffic
+  labels:
+  {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+  {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: eric-data-coordinator-zk
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: eric-oss-dmaap
+    - podSelector:
+        matchLabels:
+          app: eric-data-message-bus-kf
+    - podSelector:
+        matchLabels:
+          app: eric-data-coordinator-zk
+{{- end }}

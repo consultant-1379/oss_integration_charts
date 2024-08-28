@@ -1,0 +1,23 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: {{ template "eric-oss.name" . }}-gas-roles-configuration-configmap
+  labels:
+    app: {{ template "eric-oss.name" . }}
+    {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+  {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+data:
+  roles-configuration.json: |
+        [
+            {
+                "name": "OSSPortalAdmin",
+                 "composites": {"realm": [
+                    "UserAdmin", "LogViewer", "MetricsViewer", "GAS_User" ]}
+            },
+            {
+                "name": "OSSPortalReader",
+                "composites": {"realm": [
+                    "LogViewer", "MetricsViewer", "GAS_User" ]}
+            }
+        ]

@@ -1,0 +1,339 @@
+modelVersion: 2.0
+
+description: "Honey Pots: OSS Pipeline"
+
+docker-images:
+  - adp-release-auto: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-adp-release-auto:latest
+  - adp-inca: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/adp-int-helm-chart-auto:latest
+  - adp-helm-dr-check: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/common-library-adp-helm-dr-check:7.9.4
+  - adp-sh: armdocker.rnd.ericsson.se/sandbox/adp-staging/adp-cicd/bob-shbuilder:latest
+  - py3-builder: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-python3builder:latest
+  - csar-builder: armdocker.rnd.ericsson.se/proj-am/releases/eric-am-package-manager:2.0.40
+  - deprek8ion: eu.gcr.io/swade1987/deprek8ion:1.1.18
+  - deployment-manager: ${deployment-manager-image-full-name}:1.19.0-9
+
+properties:
+  - helm-charts-dir: charts
+  - helm-chart-name: eric-oss
+  - iccr-crd-helm-repo-name: https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-adp-gs-all-helm
+  - iccr-crd-chart-name: eric-tm-ingress-controller-cr-crd
+  - testsuite-dir: testsuite/helm-chart-validator
+  - testsuite-image-name: eo-helm-testsuite
+  - site-values-file: ${testsuite-dir}/site_values.yaml
+  - requirements-filename: requirements.yaml
+  - seli-artifactory-url: https://arm.seli.gic.ericsson.se/artifactory
+  - deployment-manager-image-name: deployment-manager
+  - image-registry: armdocker.rnd.ericsson.se
+  - deployment-manager-image-repopath: proj-eo/common
+  - deployment-manager-image-full-name: ${image-registry}/${deployment-manager-image-repopath}/${deployment-manager-image-name}
+
+env:
+  - PWD
+  - HOME
+  - GIT_COMMIT
+  - CHANGED_PYTHON_FILES
+  - HELM_REPO_CREDENTIALS
+  - GERRIT_REFSPEC
+  - ICCR_CRD_VERSION
+  - CHART_NAME
+  - CHART_VERSION
+  - CHART_REPO
+  - GIT_REPO_URL
+  - VCS_BRANCH
+  - CHART_PATH
+  - HELM_INTERNAL_REPO
+  - HELM_DROP_REPO
+  - HELM_RELEASED_REPO
+  - HELM_UPLOAD_REPO
+  - ALLOW_DOWNGRADE
+  - IGNORE_NON_RELEASED
+  - AUTOMATIC_RELEASE
+  - ALWAYS_RELEASE
+  - VERSION_STEP_STRATEGY_DEPENDENCY
+  - VERSION_STEP_STRATEGY_MANUAL
+  - HELM_REPO_CREDENTIALS
+  - ARM_API_TOKEN
+  - GERRIT_USERNAME
+  - GERRIT_PASSWORD
+  - COMMIT_MESSAGE_FORMAT_MANUAL
+  - GIT_TAG_ENABLED
+  - WAIT_SUBMITTABLE_BEFORE_PUBLISH
+  - WAIT_TIMEOUT_SEC_BEFORE_PUBLISH
+  - PRE_CODE_LEVEL (default=oss)
+  - GERRIT_PREPARE_OR_PUBLISH
+  - HELM_REPOSITORY_NAME
+  - VALUE_PACK
+  - INT_CHART_VERSION
+  - VALUES_DIRECTORY
+  - TAG
+  - SCRIPTS_DIRECTORY
+  - CSAR_STORAGE_REPO
+  - FUNCTIONAL_USER_USERNAME
+  - FUNCTIONAL_USER_PASSWORD
+  - BUILD_NUMBER
+
+var:
+  - chart-version
+  - supported-k8s-versions
+  - helm-template-file
+  - helm-chart-directory
+  - design-rule-feature-level
+  - chart-tags
+  - helm-chart-repo
+  - csar-name
+  - values-file
+
+rules:
+  git-clean:
+    - task: git-clean
+      cmd: docker run --rm -v ${env.PWD}:/git/ armdocker.rnd.ericsson.se/dockerhub-ericsson-remote/alpine/git clean -xdff
+
+  lint:
+    - task: helm
+      docker-image: adp-release-auto
+      docker-flags:
+        - --env ENABLE_HELM_V3=true
+      cmd: helm lint ${helm-charts-dir}/${helm-chart-name}
+        --values ${site-values-file}
+    - task: python3
+      docker-image: py3-builder
+      cmd: pylint --persistent=no ${env.CHANGED_PYTHON_FILES}
+
+  validate-chart-schema:
+    - task: validate
+      docker-image: adp-release-auto
+      cmd: jsonschema ${env.PWD}/${helm-charts-dir}/${helm-chart-name}/values.schema.json
+
+  shellcheck:
+    - task: run-shellcheck
+      docker-image: adp-sh
+      cmd: sh -c "git diff-tree --diff-filter=ACM --no-commit-id --name-only -r $GIT_COMMIT *.sh | xargs shellcheck"
+
+  save-requirement-file-info:
+    - task: get-tag-information
+      cmd: sed -n "/${env.CHART_NAME}$/,/name/p" ${helm-charts-dir}/${helm-chart-name}/${requirements-filename} | sed 's/ //g' | awk '/^-/' | sed 's/-//g' | grep -v ":" | sed ':a;N;$!ba;s/\n/,/g' > .bob/var.chart-tags
+    - task: add-tags-to-properties
+      cmd: echo "TAGS="${var.chart-tags} >> artifact.properties
+
+  helm-package:
+  - task: package
+    docker-image: adp-inca
+    docker-flags:
+    - --env HELM_REPO_CREDENTIALS
+    cmd: ihc-package --version 0.0.0-0 --output ${env.PWD} --helm-credentials ${env.HELM_REPO_CREDENTIALS} --folder ${env.PWD}/${helm-charts-dir}/${helm-chart-name}
+
+  validate-helm3-charts:
+  - task: validate
+    docker-image: adp-inca
+    cmd: bash -c 'export PATH=/usr/share/helm/3.x/:$PATH;
+      TEMPLATE_FAILED=blank;
+      for VALUES in $(find ${env.PWD}/${testsuite-dir} | grep yaml | grep -v "[0-9].[0-9].[0-9]-[0-9]" | grep -v "*eo-bur*");
+        do echo "Scanning $VALUES";
+        helm template ${env.PWD}/eric-oss-*.tgz -f $VALUES 1> /dev/null;
+        if [ $? -ne 0 ]; then
+          TEMPLATE_FAILED=true;
+          echo -e "\e[1m\e[31mTEMPLATE_FAILED\e[0m";
+        else
+          echo -e "\e[1m\e[32mTEMPLATE_PASSED\e[0m";
+        fi
+      done;
+      if [ "$TEMPLATE_FAILED" = "true" ]; then
+        echo -e "\e[1m\e[31mOne or More Templates have failed, Please Investigate\e[0m";
+        exit 1;
+      fi'
+
+  build-testsuite-image:
+    - task: docker-build
+      cmd: docker build ${env.PWD}/${testsuite-dir}
+        --tag ${testsuite-image-name}:${env.BUILD_NUMBER}
+
+  run-chart-testsuite:
+    - task: get-chart-version
+      cmd: find . -maxdepth 1 -name 'eric-oss-[0-9]*.tgz' | grep -oP 'eric-oss-\K.*(?=\.tgz)' > .bob/var.chart-version
+    - task: run-testsuite
+      cmd: docker run --name ${testsuite-image-name}_${env.BUILD_NUMBER}
+        -v ${env.PWD}/eric-oss-${var.chart-version}.tgz:/eric-oss.tgz
+        ${testsuite-image-name}:${env.BUILD_NUMBER}
+
+  test-suite-report-and-clean:
+    - task: get-test-report
+      cmd: docker cp ${testsuite-image-name}_${env.BUILD_NUMBER}:/testsuite/report.html ${env.PWD}/chart-test-report.html
+    - task: clean-container
+      cmd: docker rm -f ${testsuite-image-name}_${env.BUILD_NUMBER}
+
+  kube-version:
+  - task: output-kube-versions-to-file
+    docker-image: adp-release-auto
+    cmd: bash ${env.PWD}/ci/scripts/print_supported_k8s_versions.sh ${env.PWD} > .bob/var.supported-k8s-versions
+
+  kubeval:
+  - task: output-helm-template-to-file
+    docker-image: adp-release-auto
+    docker-flags:
+      - --env ENABLE_HELM_V3=true
+    cmd: helm template ${env.PWD}/eric-oss-*.tgz -f ${site-values-file} > .bob/full-helm-template.yaml
+  - task: run-kubeval
+    docker-image: adp-helm-dr-check
+    cmd: ${env.PWD}/ci/scripts/kubeval.sh ${env.PWD}/.bob/var.supported-k8s-versions ${env.PWD}/.bob/full-helm-template.yaml
+
+  deprek8ion:
+  - task: run-deprek8ion
+    docker-image: deprek8ion
+    docker-flags:
+      - "--entrypoint ${env.PWD}/ci/scripts/deprek8ion.sh"
+    cmd:  ${env.PWD}/.bob/var.supported-k8s-versions ${env.PWD}/.bob/full-helm-template.yaml
+
+# emanjoh
+  review-publish-submit-chart:
+    - task: review-publish-submit
+      docker-image: adp-inca
+      docker-flags:
+        - --env GERRIT_REFSPEC
+        - --env CHART_NAME
+        - --env CHART_VERSION
+        - --env CHART_REPO
+        - --env GIT_REPO_URL
+        - --env VCS_BRANCH
+        - --env CHART_PATH
+        - --env HELM_INTERNAL_REPO
+        - --env HELM_DROP_REPO
+        - --env HELM_RELEASED_REPO
+        - --env HELM_UPLOAD_REPO
+        - --env ALLOW_DOWNGRADE
+        - --env IGNORE_NON_RELEASED
+        - --env AUTOMATIC_RELEASE
+        - --env ALWAYS_RELEASE
+        - --env VERSION_STEP_STRATEGY_DEPENDENCY
+        - --env VERSION_STEP_STRATEGY_MANUAL
+        - --env HELM_REPO_CREDENTIALS
+        - --env ARM_API_TOKEN
+        - --env GERRIT_USERNAME
+        - --env GERRIT_PASSWORD
+        - --env COMMIT_MESSAGE_FORMAT_MANUAL
+        - --env GIT_TAG_ENABLED
+        - --env WAIT_SUBMITTABLE_BEFORE_PUBLISH
+        - --env WAIT_TIMEOUT_SEC_BEFORE_PUBLISH
+      cmd: ihc-auto ${env.GERRIT_PREPARE_OR_PUBLISH}
+
+  copy-helm-template-to-base-dir:
+  - task: get-helm-template-file
+    cmd: bash -c 'ls -1 ${env.PWD}/.bob/ | egrep "[0-9.*].tgz" | head -1 > ${env.PWD}/.bob/var.helm-template-file'
+  - task: copy-helm-template-file
+    cmd: bash -c '\cp ${env.PWD}/.bob/${var.helm-template-file} ${env.PWD}/${var.helm-template-file}'
+
+  set-design-rule-parameters:
+    - task: generate-design-rule-parameters
+      cmd: bash -c '
+          if [[ ${env.PRE_CODE_LEVEL} != "oss" ]]; then
+            echo ".bob/eric-oss_tmp/eric-oss" > .bob/var.helm-chart-directory;
+            echo "0" > .bob/var.design-rule-feature-level;
+          else
+            echo "${helm-charts-dir}/${helm-chart-name}" > .bob/var.helm-chart-directory;
+            echo "1" > .bob/var.design-rule-feature-level;
+          fi'
+
+  design-rule-checker:
+    - task: helm-dr-checker
+      docker-image: adp-helm-dr-check
+      cmd: helm-dr-check
+        -DhelmDesignRule.feature.eric-oss.dependency=${var.design-rule-feature-level}
+        -DhelmDesignRule.config.eric-oss.drHc060=skip
+        -DhelmDesignRule.config.eric-oss.drHc020=skip
+        -DhelmDesignRule.config.eric-oss.drHc032=skip
+        -DhelmDesignRule.config.eric-oss.glHc033=skip
+        -DhelmDesignRule.config.eric-oss.drHc111=skip
+        -DhelmDesignRule.config.eric-oss.drHc121=skip
+        -DhelmDesignRule.config.eric-oss.drHc182=skip
+        -DhelmDesignRule.config.eric-oss-usermgmt.drHc050=skip
+        -DhelmDesignRule.config.eric-oss-usermgmt-ui.drHc050=skip
+        -DhelmDesignRule.config.eric-oss-usermgmt.drHc063=skip
+        -DhelmDesignRule.config.eric-oss-usermgmt-ui.drHc063=skip
+        -DhelmDesignRule.config.eric-oss-api-gateway.drHc060=skip
+        -DhelmDesignRule.config.eric-oss-api-gateway.drHc062=skip
+        -DhelmDesignRule.config.eric-oss-api-gateway.drHc120=skip
+        -DhelmDesignRule.config.eric-oss-api-gateway.drHc143=skip
+        -DhelmDesignRule.config.eric-oss-api-gateway.drHc144=skip
+        -DhelmDesignRule.config.eric-oss-api-gateway.drHc145=skip
+        -DhelmDesignRule.config.eric-oss-eai.drHc050=skip
+        -DhelmDesignRule.config.eric-oss-eai.drHc060=skip
+        -DhelmDesignRule.config.eric-oss-eai.drHc062=skip
+        -DhelmDesignRule.config.eric-oss-eai.drHc120=skip
+        -DhelmDesignRule.config.eric-oss-eai.drHc143=skip
+        -DhelmDesignRule.config.eric-oss-eai.drHc144=skip
+        -DhelmDesignRule.config.eric-oss-eai.drHc145=skip
+        -DhelmDesignRule.config.eric-data-visualizer-kb.drHc063=skip
+        -DhelmDesignRule.setValue.eric-oss-so="global.hosts.iam=fake.iam.com;global.hosts.so=fake.so.com;defaultUser.username=so-user;defaultUser.password=Ericsson123!"
+        -DhelmDesignRule.setValue.eric-oss="global.hosts.iam=fake.iam.com"
+        -DhelmDesignRule.setValue.eric-oss-pf="global.hosts.pf=fake.pf.com;defaultUser.username=pf-user;defaultUser.password=Ericsson123!;global.support.ipv6.enabled=false"
+        -DhelmDesignRule.setValue.eric-oss-uds="global.hosts.uds=fake.uds.com"
+        -Dhelmdrck.credential.file.path=${env.HELM_REPO_CREDENTIALS}
+        --helm-chart ${var.helm-chart-directory}
+        --log-level WARN
+
+  set-helm-repository:
+    - task: set-helm-repository
+      cmd: echo ${seli-artifactory-url}/${env.HELM_REPOSITORY_NAME} > .bob/var.helm-chart-repo
+
+  fetch-chart:
+    - task: helm-pull
+      docker-image: adp-release-auto
+      cmd: bash -c 'helm repo add oss ${var.helm-chart-repo} --username ${env.FUNCTIONAL_USER_USERNAME} --password "${env.FUNCTIONAL_USER_PASSWORD}";
+          helm fetch --version ${env.INT_CHART_VERSION} oss/${helm-chart-name}'
+
+  fetch-crd-chart:
+    - task: helm-pull
+      docker-image: adp-release-auto
+      cmd: helm fetch --repo=${iccr-crd-helm-repo-name} --version ${env.ICCR_CRD_VERSION} ${iccr-crd-chart-name}
+
+  build-csar:
+    - task: set-csar-name
+      cmd: echo eric-${env.VALUE_PACK}-${env.INT_CHART_VERSION} > .bob/var.csar-name
+    - task: set-values-file
+      cmd: echo ${env.VALUES_DIRECTORY}/${env.VALUE_PACK}.yaml > .bob/var.values-file
+    - task: build-csar
+      docker-image: csar-builder
+      docker-flags:
+        - "--user 0:0"
+        - "--volume ${env.PWD}:/csar"
+        - "--volume ${env.HOME}/.docker:/root/.docker"
+        - "--volume /var/run/docker.sock:/var/run/docker.sock"
+        - "--workdir /csar"
+      cmd: generate --helm3 --name ${var.csar-name} --helm ${helm-chart-name}-${env.INT_CHART_VERSION}.tgz
+        --values ${var.values-file}
+        --set tags.${env.TAG}=true
+        --scripts ${env.SCRIPTS_DIRECTORY}
+
+  build-csar-with-iccr-crd:
+    - task: set-csar-name
+      cmd: echo eric-${env.VALUE_PACK}-${env.INT_CHART_VERSION} > .bob/var.csar-name
+    - task: set-values-file
+      cmd: echo ${env.VALUES_DIRECTORY}/${env.VALUE_PACK}.yaml > .bob/var.values-file
+    - task: build-csar
+      docker-image: csar-builder
+      docker-flags:
+        - "--user 0:0"
+        - "--volume ${env.PWD}:/csar"
+        - "--volume ${env.HOME}/.docker:/root/.docker"
+        - "--volume /var/run/docker.sock:/var/run/docker.sock"
+        - "--workdir /csar"
+      cmd: generate --helm3 --helm ${iccr-crd-chart-name}-${env.ICCR_CRD_VERSION}.tgz ${helm-chart-name}-${env.INT_CHART_VERSION}.tgz
+        --name ${var.csar-name}
+        --values ${var.values-file}
+        --set tags.${env.TAG}=true
+        --scripts ${env.SCRIPTS_DIRECTORY}
+
+  upload-csar:
+    - task: upload-csar
+      cmd: curl -X PUT -u ${env.FUNCTIONAL_USER_USERNAME}:${env.FUNCTIONAL_USER_PASSWORD} -T ${var.csar-name}.csar ${seli-artifactory-url}/${env.CSAR_STORAGE_REPO}/${helm-chart-name}/eric-${env.VALUE_PACK}/${env.INT_CHART_VERSION}/${var.csar-name}.csar
+
+  pull-deployment-manager-image:
+    - task: pull-image
+      cmd: docker pull ${deployment-manager-image-full-name}:1.19.0-9
+    - task: retag-image
+      cmd: docker tag ${deployment-manager-image-full-name}:1.19.0-9 ${deployment-manager-image-name}:${env.INT_CHART_VERSION}
+
+  save-deployment-manager:
+    - task: make-dir
+      cmd: mkdir -p ${env.SCRIPTS_DIRECTORY}/common
+    - task: save-image
+      cmd: docker save ${deployment-manager-image-name}:${env.INT_CHART_VERSION} -o ${env.SCRIPTS_DIRECTORY}/common/${deployment-manager-image-name}.tar

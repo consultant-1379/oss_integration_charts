@@ -1,0 +1,31 @@
+{{- if .Values.global.networkPolicy.enabled -}}
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: {{ template "eric-oss.name" . }}-eai-database-pg-limit-internal-traffic
+  labels:
+  {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+  {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: eric-eo-eai-database-pg
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: eric-eo-eai
+    - podSelector:
+        matchLabels:
+          app: eric-eo-service-checker
+    - podSelector:
+        matchLabels:
+          app: eric-eo-eai-database-pg
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: eric-ctrl-bro
+    - podSelector:
+        matchLabels:
+          app: eric-eo-eai-database-pg-bragent
+{{- end }}

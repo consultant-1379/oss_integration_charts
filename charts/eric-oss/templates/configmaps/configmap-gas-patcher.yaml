@@ -1,0 +1,132 @@
+{{ $logging := include "eric-oss.logging.enabled" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "eric-oss.name" . }}-gas-patcher-configmap
+  labels:
+    {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+    {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+data:
+  patchedconfig.json: |
+    {
+      "apps": [
+        {
+          "type": "external",
+          "groupNames": [
+            "eoportalSysadm", "eoportalEO"
+          ],
+          "url": "https://{{ .Values.global.hosts.iam }}/auth/admin/master/console/#/realms/master/user-federation",
+          "displayName": "External LDAP Configuration",
+          "descriptionShort": "External LDAP Configuration",
+          "descriptionLong": "Configure and update the LDAP User Federation of your applications",
+          "version": "1.0.0",
+          "name": "eoportalSysadm:external-ldap-configuration"
+        },
+{{- if .Values.tags.uds -}}
+        {
+          "type": "external",
+          "groupNames": [
+            "eoportalUDS", "eoportalEO"
+          ],
+          "url": "https://{{ .Values.global.hosts.uds }}/login?userId=cs0008&password=123123a",
+          "displayName": "Design Dashboard",
+          "descriptionShort": "Universal Design Studio Dashboard",
+          "descriptionLong": "Graphical design and creation of services according to the TOSCA specifications",
+          "version": "1.0.0",
+          "name": "eoportalUDS:Dashboard"
+        },
+{{- end -}}
+{{- if .Values.tags.so -}}
+        {
+          "type": "external",
+          "groupNames": [
+            "eoportalSysadm", "eoportalEO"
+          ],
+          "url": "https://{{ .Values.global.hosts.so }}/so/#so-ui/so-catalog-manager",
+          "displayName": "Catalog Manager",
+          "descriptionShort": "Management of artifacts required by EO SO",
+          "descriptionLong": "Management of service and configuration templates, workflows, playbooks",
+          "version": "1.0.0",
+          "name": "eoportalSysadm:catalog-manager"
+        },
+        {
+          "name": "eoportalSysadm:connected-systems",
+          "url": "https://{{ .Values.global.hosts.so }}/so/#connected-systems-redirect",
+          "version": "1.0.0",
+          "displayName": "Connected Systems",
+          "descriptionShort": "Configuration of connected NFVO and EMS",
+          "descriptionLong": "Configuration of NFVO and Domain Manager/EMS systems for the lifecycle management of network services",
+          "groupNames": [
+            "eoportalEO", "eoportalSysadm"
+          ]
+        },
+{{- end -}}
+{{- if eq $logging "true" -}}
+        {
+          "type": "external",
+          "groupNames": [
+            "eoportalSysadm", "eoportalEO"
+          ],
+          "url": "https://{{ .Values.global.hosts.gas }}/log/viewer",
+          "displayName": "Log Viewer",
+          "descriptionShort": "Log Data Visualization",
+          "descriptionLong": "Visualization capabilites on top of the content indexed on a Search Engine cluster",
+          "version": "1.0.0",
+          "name": "eoportalSysadm:log-viewer"
+        },
+{{- end -}}
+        {
+          "type": "external",
+          "groupNames": [
+            "eoportalSysadm", "eoportalEO"
+          ],
+          "url": "https://{{ .Values.global.hosts.gas }}/metrics/viewer",
+          "displayName": "Performance Metrics Viewer",
+          "descriptionShort": "Performance Metrics Viewer",
+          "descriptionLong": "Visualization capabilites of performance metrics data",
+          "version": "1.0.0",
+          "name": "eoportalSysadm:metrics-viewer"
+        },
+        {
+          "type": "external",
+          "groupNames": [
+            "eoportalSysadm", "eoportalEO"
+          ],
+          "url": "https://{{ .Values.global.hosts.gas }}/idm/usermgmt-ui/",
+          "displayName": "User Administration",
+          "descriptionShort": "User Administration Interface",
+          "descriptionLong": "User and Role management functionality supporting creation, deletion and update of a user",
+          "version": "1.0.0",
+          "name": "eoportalSysadm:user-management"
+        }
+      ],
+      "groups": [
+        {
+          "descriptionShort": "EO Ericsson Orchestrator",
+          "descriptionLong": "EO Ericsson Orchestrator",
+          "type": "product",
+          "displayName": "Ericsson Orchestrator",
+          "version": "1.0.0",
+          "name": "eoportalEO"
+        },
+{{- if .Values.tags.uds -}}
+         {
+          "descriptionShort": "Universal Design Studio",
+          "descriptionLong": "Universal Design Studio uses TOSCA",
+          "type": "category",
+          "displayName": "Universal Design Studio",
+          "version": "1.0.0",
+          "name": "eoportalUDS"
+         },
+{{- end -}}
+        {
+          "descriptionLong": "System and Common Apps: logging, performance and user management",
+          "descriptionShort": "System and Common Apps",
+          "type": "category",
+          "displayName": "System and Common Apps",
+          "version": "1.0.0",
+          "name": "eoportalSysadm"
+        }
+      ]
+    }

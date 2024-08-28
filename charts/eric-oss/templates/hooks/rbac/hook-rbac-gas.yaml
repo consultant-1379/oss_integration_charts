@@ -1,0 +1,70 @@
+{{ $keycloak := include "eric-oss.keycloak.enabled" . }}
+{{ if eq $keycloak "true" -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "eric-oss.name" . }}-gas-rbac-configuration-hook
+  labels:
+    {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install, post-upgrade, post-rollback
+    "helm.sh/hook-weight": "15"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+    spec:
+      serviceAccountName: {{ template "eric-oss.name" . }}-sa
+      {{- if include "eric-oss.keycloak-config.pullSecrets" . }}
+      imagePullSecrets:
+        - name: {{ template "eric-oss.keycloak-config.pullSecrets" . }}
+      {{- end }}
+      restartPolicy: OnFailure
+      containers:
+        - name: keycloak-client
+          image: {{ template "eric-oss.keycloak-client-path" . }}
+          imagePullPolicy: {{ index .Values "imageCredentials" "keycloak-client" "registry" "imagePullPolicy" }}
+          env:
+            - name: IAM_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.iam.adminSecret | quote }}
+                  key: {{ .Values.global.iam.userKey | quote }}
+            - name: IAM_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.iam.adminSecret | quote }}
+                  key: {{ .Values.global.iam.passwordKey | quote }}
+          args:
+          - "create"
+          - "authz"
+          - "--keycloak_hostname={{ .Values.global.hosts.iam }}"
+          - "--keycloak_user=$(IAM_ADMIN_USER)"
+          - "--keycloak_password=$(IAM_ADMIN_PASSWORD)"
+          - "--client_name={{ .Values.global.iam.clientId }}"
+          - "--provider=eric-adp-gui-aggregator-service"
+          - "--config=/config/rbac-configuration.json"
+          volumeMounts:
+          - name: eric-gui-aggregator-rbac-configuration-volume
+            mountPath: /config
+          - name: create-cacert-volume
+            mountPath: /mnt/certs
+          securityContext:
+            allowPrivilegeEscalation: true
+            runAsNonRoot: false
+            runAsUser: 0
+      {{- include "eric-oss.nodeSelector" .| indent 6 }}
+      volumes:
+      - name: eric-gui-aggregator-rbac-configuration-volume
+        configMap:
+          name: {{ template "eric-oss.name" . }}-gas-rbac-configuration-configmap
+          defaultMode: 0777
+      - name: create-cacert-volume
+        secret:
+          secretName: {{ .Values.global.iam.cacert.secretName }}
+          items:
+            - key: {{ .Values.global.iam.cacert.key }}
+              path: {{ .Values.global.iam.cacert.filePath }}
+{{- end -}}

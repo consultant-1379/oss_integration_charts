@@ -1,0 +1,49 @@
+{{- if .Values.global.networkPolicy.enabled -}}
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: {{ template "eric-oss.name" . }}-dmaap-mr-allow-external-traffic
+  labels:
+  {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+  {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: eric-oss-dmaap
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: eric-data-coordinator-zk
+    - podSelector:
+        matchLabels:
+          app: eric-data-message-bus-kf
+    - podSelector:
+        matchLabels:
+          app: eric-eo-onboarding
+    - podSelector:
+        matchLabels:
+          app: eric-oss-uds-service
+    - podSelector:
+        matchLabels:
+          app: eric-oss-pf-pap
+    - podSelector:
+        matchLabels:
+          app: eric-eo-playbook-service
+    - podSelector:
+        matchLabels:
+          app: eric-eo-engine
+    - podSelector:
+        matchLabels:
+          app: eric-eo-enm-adapter
+    - podSelector:
+        matchLabels:
+          app: eric-eo-workflow
+    - podSelector:
+        matchLabels:
+          app: eric-eo-ipaddress-manager
+    - podSelector:
+        matchLabels:
+          app: eric-eo-subsystem-management
+{{- end }}

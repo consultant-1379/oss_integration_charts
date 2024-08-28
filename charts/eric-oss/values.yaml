@@ -1,0 +1,634 @@
+#
+# COPYRIGHT Ericsson 2019
+#
+#
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Inc. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+#
+
+# Default values for eric-oss.
+global:
+  iam:
+    clientId: eo
+    adminSecret: eric-sec-access-mgmt-creds
+    userKey: kcadminid
+    passwordKey: kcpasswd
+    cacert:
+      secretName: iam-cacert-secret
+      key: tls.crt
+      filePath: iam/ca.crt
+  ingressClass: oss_iccr
+  # TODO: For the temporary transition period only! Remove it after.
+  iccrAppIngresses: false
+  networkPolicy:
+    enabled: true
+  registry:
+    url: armdocker.rnd.ericsson.se
+  security:
+    tls:
+      enabled: false
+    sasl:
+      enabled: true
+  support:
+    ipv6:
+      enabled: false
+  timezone: UTC
+  createClusterRoles: true
+  pullSecret: "k8s-registry-secret"
+  systemUser:
+    secret: eric-oss-system-user-secret
+    userKey: system-user
+    passwordKey: system-user-pwd
+
+tags:
+  so: false
+  pf: false
+  uds: false
+  platform: false
+  adc : false
+  dmm : false
+  th : false
+  eas: false
+
+eric-oss-create-system-user-hook:
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "100m"
+
+eric-oss-update-themes-hook:
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "100m"
+
+gas:
+  defaultUser:
+    username:
+    password:
+
+ingress:
+  enabled: true
+  # next line is only to comply with DR-HC-181/DR-D1125-0014-AD
+  hostname: ""
+  tls:
+    passthrough: false
+    secretName: gas-tls-secret
+
+stubs:
+  enabled: &stubsEnabled false
+
+eric-eo-api-gateway:
+  iam:
+    kubernetesSecret: eric-oss-iam-client-secret
+
+imageCredentials:
+  keycloak-client:
+    registry:
+      imagePullPolicy: IfNotPresent
+    repoPath: "proj-orchestration-so"
+  gas-patcher:
+    registry:
+      imagePullPolicy: IfNotPresent
+    repoPath: "proj-orchestration-so"
+
+eric-data-search-engine:
+  autoSetRequiredWorkerNodeSysctl: true
+  persistence:
+    data:
+      persistentVolumeClaim:
+        size: "30Gi"
+
+eric-data-search-engine-curator:
+  cronjob:
+    curator:
+      schedule: "0 1 * * *"
+      successfulJobHistoryLimit: 1
+      failedJobHistoryLimit: 3
+  actions: |
+    1:
+      action: delete_indices
+      description: Remove logs older than 1 week
+      options:
+        disable_action: false
+        ignore_empty_list: true
+      filters:
+      - filtertype: age
+        source: name
+        direction: older
+        timestring: '%Y.%m.%d'
+        unit: days
+        unit_count: 7
+      - filtertype: space
+        disk_space: 28
+
+eric-log-shipper:
+  additionalVolumes: |
+    - name: docker-containers
+      hostPath:
+        path: /var/lib/docker/containers
+    - name: kubernetes-containers
+      hostPath:
+        path: /var/log/pods
+  additionalVolumeMounts: |
+    - name: docker-containers
+      mountPath: /var/lib/docker/containers
+    - name: kubernetes-containers
+      mountPath: /var/log/pods
+  logshipper:
+    cfgData: ""
+    autodiscover:
+      enabled: true
+      logplane: eo
+      namespace: ".RELEASE.NAMESPACE"
+      exclusions:
+        - field: "kubernetes.container.name"
+          value: "logshipper"
+        - field: "kubernetes.container.name"
+          value: "logtransformer"
+        - field: "kubernetes.container.name"
+          value: "searchengine"
+        - field: "kubernetes.container.name"
+          value: "sysctl"
+        - field: "kubernetes.container.name"
+          value: "curator"
+        - field: "kubernetes.container.name"
+          value: "simple-ericsson-branding-server"
+        - field: "kubernetes.container.name"
+          value: "kibana"
+        - field: "kubernetes.container.name"
+          value: "metrics"
+      templates:
+        - condition.regexp:
+            kubernetes.container.name: .+
+          config:
+            - type: docker
+              combine_partial: true
+              cri.parse_flags: true
+              cri.force: true
+              containers.ids:
+                - "*"
+              containers.path: "/var/log/pods/${data.kubernetes.namespace}_${data.kubernetes.pod.name}_${data.kubernetes.pod.uid}/"
+    privileged: true
+  rbac:
+    automountServiceAccountToken: true
+    createClusterRole: true
+    createClusterRoleBinding: true
+
+eric-log-transformer:
+  resources:
+    logtransformer:
+      requests:
+        cpu: 250m
+        memory: 2048Mi
+      limits:
+        cpu: 500m
+        memory: 2048Mi
+  jvmHeap: 1596m
+  config:
+    adpJson:
+      transformation:
+        enabled: true
+    filter: |
+      if ![type] or [type] == "filebeat"{
+        if [message] =~ /^\{.+\}$/ {
+          json {
+            source => "message"
+            skip_on_invalid_json => true
+          }
+        }
+        mutate {
+          rename => ["log", "message"]
+        }
+        # Parse nested json content, if it exists
+        if [message] =~ /^\{.+\}$/ {
+          json {
+            source => "message"
+            skip_on_invalid_json => true
+          }
+        }
+        #Mutation of HELM logs
+        mutate {
+          rename => ["M", "message" ]
+          rename => ["L", "severity" ]
+          rename => ["T", "timestamp" ]
+          rename => ["clientIP", "client_addr" ]
+          rename => ["reqID", "correlation_id" ]
+
+          rename => ["statusCode", "resp_code" ]
+          convert => {
+            "resp_code" => "string"
+          }
+
+          # eric-vnflcm-service logs
+          rename => ["Severity", "severity" ]
+          rename => ["LoggerName", "logger" ]
+          rename => ["Thread", "thread" ]
+          rename => ["full_message", "message" ]
+        }
+
+        # These services log in JSON, they don't need be parsed via grok plugin, only via JSON plugin.
+        if [kubernetes][container][name] in ["registry", "eric-am-onboarding-service", "eric-vnfm-orchestrator-service", "eric-am-common-wfs", "eric-eo-evnfm-wfs-file-bro-agent", "eric-am-common-wfs-bro-agent-filemount", "eric-eo-evnfm-nbi", "eric-vnflcm-service", "toscao"] {
+          mutate {
+            add_field => { "[@metadata][fully_parsed]" => "true" }
+          }
+        }
+
+        if [@metadata][fully_parsed] != "true" {
+          grok {
+            pattern_definitions => {
+              # If log string doesn't have data for required ADP "message" field,
+              # please, USE THIS as the last of an expression to to override logstash "message".
+              # Below in the code this empty "message" is replaced by default value.
+              "NOTHING" => '()'
+              "HTTPD_LOG_CUSTOM" => '%{IP:client_addr} %{HTTPDUSER:ident} %{HTTPDUSER:auth} \[%{HTTPDATE:request_timestamp}\] "(?:%{WORD:method} %{NOTSPACE:path}( HTTP/%{NUMBER:http_version}))" %{NUMBER:resp_code} (?:%{NUMBER:resp_size_bytes}|-)'
+              "KEYCLOAK_CLIENT_DATA" => 'realmId=%{DATA:realm_id}, clientId=%{DATA:client_id}, userId=%{DATA:user_id}, ipAddress=%{IP:client_addr}'
+              "DOCKER_REGISTRY_BASE_PATTERN" => 'time=\"%{TIMESTAMP_ISO8601:log_timestamp}\"%{SPACE}level=%{LOGLEVEL:log_severity}%{SPACE}msg=\"%{DATA:message}\"%{SPACE}go.version=%{DATA}%{SPACE}http.request.host=%{HOSTNAME:http_request_host}%{SPACE}http.request.id=%{UUID:request_id}%{SPACE}http.request.method=%{WORD:method}%{SPACE}http.request.remoteaddr=%{IP:client_addr}%{SPACE}http.request.uri=\"%{DATA:path}\"%{SPACE}http.request.useragent=\"%{DATA:user_agent}\"'
+            }
+            keep_empty_captures => true
+            overwrite => [ "message" ]
+            match => {
+              "message" => [
+                # API-Gateway logs
+                '^%{HTTPD_LOG_CUSTOM}%{SPACE}%{NUMBER:port:int}%{SPACE}%{NUMBER:resp_duration_ms:float} ms%{NOTHING:message}$',
+                '^\[%{DATA}\] %{NUMBER:resp_code} %{GREEDYDATA:resp_message} %{WORD:method} %{GREEDYDATA:message}$',
+                # Spring Boot logs
+                '^%{TIMESTAMP_ISO8601:log_timestamp}%{SPACE}%{LOGLEVEL:log_severity} \[%{DATA},%{DATA:correlation_id},%{DATA},%{DATA}\] %{POSINT:[metadata][proc_id]:int} --- \[%{SPACE}%{DATA:thread}\] %{NOTSPACE:logger}%{SPACE}: %{GREEDYDATA:message}$',
+                '^%{TIMESTAMP_ISO8601:log_timestamp}%{SPACE}%{LOGLEVEL:log_severity} \[%{DATA:correlation_id}\]\[%{DATA:user}\] %{POSINT:[metadata][proc_id]:int} --- \[%{SPACE}%{DATA:thread}\] %{NOTSPACE:logger}%{SPACE}: %{GREEDYDATA:message}$',
+                '^%{TIMESTAMP_ISO8601:log_timestamp}%{SPACE}%{LOGLEVEL:log_severity} %{POSINT:[metadata][proc_id]:int} --- \[%{SPACE}%{DATA:thread}\] %{NOTSPACE:logger}%{SPACE}: %{GREEDYDATA:message}$',
+                # PostgreSQL logs
+                '^%{TIMESTAMP_ISO8601:log_timestamp}%{SPACE}%{LOGLEVEL:log_severity}:%{SPACE}%{GREEDYDATA:message}$',
+                # %{WORD} has been used for severity because Postgres logs can contain loglevel which is absent in %{LOGLEVEL}
+                '^%{TIMESTAMP_ISO8601:log_timestamp} %{WORD} \[%{POSINT:[metadata][proc_id]:int}\]%{WORD:log_severity}: %{GREEDYDATA:message}$',
+                # PostgreSQL metrics logs
+                '^time="%{TIMESTAMP_ISO8601:log_timestamp}"%{SPACE}level=%{LOGLEVEL:log_severity}%{SPACE}msg="%{DATA:message}"%{SPACE}source="%{DATA:source_file}"$',
+                # Docker registry logs
+                '^%{HTTPD_LOG_CUSTOM}%{SPACE}\"%{DATA:http_referer_path}\"%{SPACE}\"%{DATA:user_agent}\"%{NOTHING:message}$',
+                '^%{DOCKER_REGISTRY_BASE_PATTERN}%{SPACE}http.response.contenttype=\"%{DATA:resp_content_type}\"%{SPACE}http.response.duration=%{NUMBER:resp_duration_ms:float}ms%{SPACE}http.response.status=%{NUMBER:resp_code}%{SPACE}http.response.written=%{NUMBER:resp_size_bytes}%{SPACE}$',
+                '^%{DOCKER_REGISTRY_BASE_PATTERN}%{SPACE}%{GREEDYDATA:extra_data}$',
+                # Keyclock: v1.5 and higher
+                # Keycloak: admin events
+                '^%{TIMESTAMP_ISO8601:log_timestamp} %{LOGLEVEL:log_severity}%{SPACE}\[%{NOTSPACE:logger}\] \(%{DATA:thread}\) operationType=%{WORD:method}, %{KEYCLOAK_CLIENT_DATA}, %{DATA:extra_data}%{NOTHING:message}$',
+                # Keycloak: logging events
+                '^%{TIMESTAMP_ISO8601:log_timestamp} %{LOGLEVEL:log_severity}%{SPACE}\[%{NOTSPACE:logger}\] \(%{DATA:thread}\) type=%{WORD:event_type}, %{KEYCLOAK_CLIENT_DATA}, %{DATA:extra_data}%{NOTHING:message}$',
+                # Keycloak: other
+                '^%{TIME:time} %{LOGLEVEL:log_severity}%{SPACE}\[%{NOTSPACE:logger}\] \(%{DATA:thread}\) %{GREEDYDATA:message}$',
+                # PM Server logs
+                '^level=%{LOGLEVEL:log_severity} ts=%{TIMESTAMP_ISO8601:log_timestamp} caller=%{DATA:source_file} component=%{NOTSPACE:component}( func=%{NOTSPACE:[metadata][function]})? msg="%{GREEDYDATA:message}"( %{GREEDYDATA:extra_data})?',
+                # data-message-bus-rmq
+                '^time=\"%{TIMESTAMP_ISO8601:log_timestamp}\" level=%{LOGLEVEL:log_severity} msg=\"%{DATA:message}\" duration=%{NUMBER:resp_duration_ms:float}ms$',
+                # eric-ctrl-bro container logs
+                '^%{TIMESTAMP_ISO8601:log_timestamp} %{LOGLEVEL:log_severity} %{NOTSPACE:logger}:%{SPACE}%{GREEDYDATA:message}$',
+                # uds-onboarding/uds-service/uds-authenticator/uds-ui logs
+                '\[%{TIMESTAMP_ISO8601:time}\]%{SPACE}%{LOGLEVEL:severity}\:%{SPACE}%{GREEDYDATA:message}',
+                # policy-service logs
+                '^%{TIMESTAMP_ISO8601:timestamp}%{SPACE}%{LOGLEVEL:severity}([^\[]+)\[%{SPACE}(?<source>[^\]]+)\]%{SPACE}(?<error>[^\:]+)\:%{SPACE}%{GREEDYDATA:message}',
+                '^%{LOGLEVEL:severity}\:%{SPACE}%{GREEDYDATA:message}',
+                # policy-editor logs
+                '^%{TIME:time}%{SPACE}\[(?<source>[^\]]+)\]%{SPACE}%{LOGLEVEL:loglevel}%{SPACE}%{GREEDYDATA:message}',
+                '^(?<time>%{MONTH}\s%{MONTHDAY}\,\s%{YEAR}\s%{TIME}\s%{WORD})%{SPACE}%{GREEDYDATA:message}'
+              ]
+            }
+          }
+        }
+        #Override "timestamp" from filebeat by timestamp from the log
+        if [log_timestamp] {
+          mutate { copy => { "log_timestamp" => "timestamp" } }
+        }
+        if [log_severity] {
+          mutate { copy => { "log_severity" => "severity" } }
+        }
+        date {
+          match => [
+            "timestamp",
+            "ISO8601", "dd/MMM/yyyy:HH:mm:ss Z", "UNIX"
+          ]
+          target => "timestamp"
+        }
+        # Add default value in ADP message if it is empty
+        if [message] == "" {
+          mutate { update => { "message" => "[event]" } }
+        }
+
+        if [service_id] == "" {
+          mutate { copy => { "[kubernetes][container][name]" => "service_id" } }
+        }
+        # Track ADP LogTransfomer config, perhaps, they will adjust mapping of these fields on their side
+        if [metadata][node_name] == "" {
+          mutate { rename => { "[kubernetes][node][name]" => "[metadata][node_name]" } }
+        }
+        if [metadata][pod_name] == "" {
+          mutate { rename => { "[kubernetes][pod][name]" => "[metadata][pod_name]" } }
+        }
+        if [metadata][pod_uid] == "" {
+          mutate { rename => { "[kubernetes][pod][uid]" => "[metadata][pod_uid]" } }
+        }
+        if [metadata][container_name] == "" {
+          mutate { rename => { "[kubernetes][container][name]" => "[metadata][container_name]" } }
+        }
+        if [metadata][namespace] == "" {
+          mutate { rename => { "[kubernetes][namespace]" => "[metadata][namespace]" } }
+        }
+        if [version] == "" {
+          mutate { add_field => { "version" => "1.0.0" } }
+        }
+
+        mutate { remove_field => [ "sequence", "@version", "time", "Time", "short_message", "level", "stream", "log_timestamp", "log_severity" ] }
+
+        #Drop message from all actuator logs
+        if [path] =~ /actuator/ {
+          drop {}
+        }
+
+        mutate { lowercase => [ "severity" ] }
+
+        translate {
+          destination => "severity"
+          override => true
+          field => "severity"
+          dictionary => {
+            "fatal"   => "critical"
+            "panic"   => "critical"
+            "warn"    => "warning"
+            "notice"  => "info"
+            "log"     => "info"
+            "trace"   => "debug"
+          }
+        }
+      }
+
+eric-tm-ingress-controller-cr:
+  enabled: false
+  rbac:
+    create: true
+  service:
+    externalTrafficPolicy: "Local"
+
+eric-data-visualizer-kb:
+  branding:
+    basePath: /log/viewer
+
+eric-sec-access-mgmt:
+  ingress:
+    enabled: true
+    hostname:
+    tls:
+      enabled: true
+      existingSecret: 'iam-tls-secret'
+  persistence:
+    dbVendor: POSTGRES
+    dbName: idam
+    dbHost: idam-database-pg
+    dbsecret: eric-sec-access-mgmt-creds
+    dbUserkey: pguserid
+    dbPasswdkey: pgpasswd
+  statefulset:
+    tls:
+      enabled: false
+  service:
+    tls:
+      enabled: false
+
+idam-database-pg:
+  brAgent:
+    enabled: true
+    backupTypeList:
+      - "GR"
+  credentials:
+    kubernetesSecretName: eric-sec-access-mgmt-creds
+    keyForUserId: pguserid
+    keyForUserPw: pgpasswd
+    keyForSuperPw: pgpasswd
+    keyForReplicaId: pguserid
+    keyForReplicaPw: pgpasswd
+    keyForMetricsPw: pgpasswd
+  postgresDatabase: idam
+  postgresConfig:
+    max_prepared_transactions: 100
+  persistentVolumeClaim:
+    enabled: true
+  patroni:
+    logLevel: WARNING
+
+eric-pm-server:
+  server:
+    baseURL: "metrics/viewer/"
+    prefixURL: "metrics/viewer/"
+    persistentVolume:
+      enabled: true
+  service:
+    endpoints:
+      scrapeTargets:
+        tls:
+          ## If optional both cleartext and TLS targets will be scraped
+          ## If required only TLS targets will be scraped
+          enforced: optional
+      reverseproxy:
+        tls:
+          enforced: optional
+          verifyClientCertificate: optional
+  rbac:
+    appMonitoring:
+      enabled: true
+  resources:
+    server:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256M
+
+eric-eo-eai-database-pg:
+  brAgent:
+    enabled: true
+    backupTypeList:
+      - "GR"
+  credentials:
+    kubernetesSecretName: eric-eo-database-pg-secret
+  postgresConfig:
+    max_prepared_transactions: 100
+  persistentVolumeClaim:
+    enabled: true
+
+eric-ctrl-bro:
+  persistence:
+    persistentVolumeClaim:
+      size: "20Gi"
+  security:
+    tls:
+      broToAgent:
+        enabled: false
+      rest:
+        enabled: false
+  service:
+    endpoints:
+      broToAgent:
+        tls:
+          enforced: optional
+          verifyClientCertificate: optional
+      restActions:
+        tls:
+          enforced: optional
+
+rbac:
+  eric-pm-server:
+    resources:
+      - "/metrics/viewer/**"
+  eric-data-visualizer-kb:
+    resources:
+      - "/logs/**"
+      - "/log/viewer/**"
+  eric-ctrl-bro:
+    resources:
+      - "/backup-restore/**"
+  eric-gr-bur-orchestrator:
+    resources:
+      - "/geo/**"
+
+eric-oss-dmaap:
+  kafka:
+    name: eric-data-message-bus-kf
+    port: 9091
+  zookeeper:
+    kafkapath: "/eric-data-message-bus-kf"
+
+eric-data-message-bus-kf:
+  service:
+    endpoints:
+      messagebuskf:
+        sasl:
+          enforced: "optional"
+  security:
+    sasl:
+      zookeeperclient:
+        enabled: true
+  persistence:
+    persistentVolumeClaim:
+      size: 2Gi
+      storageClassName: ""
+  configurationOverrides:
+    "group.min.session.timeout.ms": 5000
+    "group.max.session.timeout.ms": "7350000"
+    "message.max.bytes": "17825792"
+    "replica.fetch.max.bytes": "17825792"
+
+eric-data-coordinator-zk:
+  persistantVolumeClaim:
+    storage: 2Gi
+    storageClassName: ""
+  persistence:
+    persistentVolumeClaim:
+      size: 2Gi
+      storageClassName: ""
+  resources:
+    datacoordinatorzk:
+      limits:
+        memory: 2Gi
+
+eric-adp-gui-aggregator-service:
+  ingress:
+    enabled: false
+  podSecurityPolicy:
+    enabled: true
+  resources:
+    main:
+      limits:
+        cpu: 500m
+        memory: 150Mi
+      requests:
+        cpu: 250m
+        memory: 100Mi
+
+eric-eo-so:
+  stubs:
+    enabled: *stubsEnabled
+# TODO - Remove Below section when Autobots fix it in their chart
+  eric-eo-playbook-service:
+    resources:
+      requests:
+        memory: 780M
+        cpu: 250m
+      limits:
+        memory: 800M
+
+eric-oss-common-postgres:
+  brAgent:
+    enabled: true
+    backupTypeList:
+      - "GR"
+  credentials:
+    kubernetesSecretName: eric-eo-database-pg-secret
+  patroni:
+    logLevel: WARNING
+
+eric-oss-notification-service-database-pg:
+  brAgent:
+    enabled: true
+    backupTypeList:
+      - "GR"
+    logicalDBBackupEnable: true
+    backupDataModelConfig: eric-oss-notification-service-database-pg-exclusions
+  credentials:
+    kubernetesSecretName: eric-eo-database-pg-secret
+  postgresDatabase: oss-notification-service
+  postgresConfig:
+    max_prepared_transactions: 100
+  persistentVolumeClaim:
+    enabled: true
+  resources:
+    postgres:
+      limits:
+        cpu: 400m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+
+activateTheme:
+  enabled: true
+
+eric-eo-subsystem-management-database-pg:
+  brAgent:
+    enabled: true
+    backupTypeList:
+      - "GR"
+  credentials:
+    kubernetesSecretName: eric-eo-database-pg-secret
+  postgresDatabase: postgres
+  postgresConfig:
+    max_prepared_transactions: 100
+  persistentVolumeClaim:
+    enabled: true
+    backup:
+      enabled: false
+
+eric-eo-credential-manager:
+  subsystemManagementApi:
+    enabled: true
+  logging:
+    format:
+      json: true
+
+eric-eo-credential-manager-v2:
+  subsystemManagementApi:
+    enabled: true
+
+eric-eo-onboarding:
+  logging:
+    format:
+      json: true

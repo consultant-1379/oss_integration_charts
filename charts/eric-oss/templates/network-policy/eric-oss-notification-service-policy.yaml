@@ -1,0 +1,27 @@
+{{ if .Values.global.networkPolicy.enabled -}}
+{{- if eq (include "eric-oss.notification-service.enabled" .) "true" -}}
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: {{ template "eric-oss.name" . }}-eric-oss-notification-service-limit-internal-traffic
+  labels:
+  {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+  {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: eric-oss-notification-service
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: eric-pm-server
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: eric-oss-notification-service
+    - podSelector:
+        matchLabels:
+          app: eric-eo-so-service-order-mgmt-agent
+{{- end -}}
+{{- end }}

@@ -1,0 +1,63 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: {{ template "eric-oss.name" . }}-gas-rbac-configuration-configmap
+  labels:
+  {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+  {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+data:
+  rbac-configuration.json: |
+      {
+        "roles": [
+          {
+            "name": "GAS_User",
+            "attributes": {
+            "type": [
+                "internal"
+              ]}
+          }
+        ],
+        "authorization": {
+          "resources": [
+            {
+              "name": "Gas",
+              "type": "urn:eo:gas:resources:gas",
+              "ownerManagedAccess": false,
+              "attributes": {},
+              "scopes": [
+                {
+                  "name": "GET"
+                }
+              ]
+            }
+        ],
+          "policies": [
+            {
+              "name": "Is Gas User",
+              "type": "role",
+              "logic": "POSITIVE",
+              "decisionStrategy": "UNANIMOUS",
+              "config": {
+                "roles": "[{\"id\":\"GAS_User\",\"required\":false}]"
+              }
+            },
+            {
+              "name": "View Gas",
+              "type": "scope",
+              "logic": "POSITIVE",
+              "decisionStrategy": "AFFIRMATIVE",
+              "config": {
+                "resources": "[\"Gas\"]",
+                "scopes": "[\"GET\"]",
+                "applyPolicies": "[\"Is Gas User\"]"
+              }
+            }
+          ],
+          "scopes": [
+            {
+              "name": "GET"
+            }
+          ]
+        }
+      }

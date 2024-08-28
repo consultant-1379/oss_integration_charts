@@ -1,0 +1,56 @@
+{{- if .Values.global.networkPolicy.enabled -}}
+---
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: {{ template "eric-oss.name" . }}-common-bragent-limit-evnfm-internal-traffic
+  labels:
+  {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+  {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: application-manager-postgres
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: eric-eo-common-br-agent
+---
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: {{ template "eric-oss.name" . }}-common-bragent-limit-so-wf-internal-traffic
+  labels:
+  {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+  {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: eric-eo-workflow-database-pg
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: eric-eo-common-br-agent
+---
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: {{ template "eric-oss.name" . }}-common-bragent-limit-eai-internal-traffic
+  labels:
+  {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+  {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: eric-eo-eai-adapter
+  ingress:
+    - from:
+      - podSelector:
+          matchLabels:
+            app: eric-eo-common-br-agent
+{{- end }}

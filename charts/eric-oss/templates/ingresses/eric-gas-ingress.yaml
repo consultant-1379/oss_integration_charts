@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: eric-adp-gui-aggregator-service-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  labels:
+    {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+spec:
+  tls:
+    - hosts:
+        - {{ required "A valid .Values.global.hosts.gas entry required" .Values.global.hosts.gas }}
+      secretName: {{ required "A valid .Values.ingress.tls.secretName entry required" .Values.ingress.tls.secretName }}
+  rules:
+    - host: {{ .Values.global.hosts.gas }}
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: eric-eo-api-gateway
+              servicePort: 80

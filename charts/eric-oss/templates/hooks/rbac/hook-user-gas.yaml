@@ -1,0 +1,63 @@
+{{ $keycloak := include "eric-oss.keycloak.enabled" . }}
+{{ if eq $keycloak "true" -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "eric-oss.name" . }}-gas-create-user-hook
+  labels:
+    {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install, post-upgrade, post-rollback
+    "helm.sh/hook-weight": "17"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+    spec:
+      serviceAccountName: {{ template "eric-oss.name" . }}-sa
+      {{- if include "eric-oss.keycloak-config.pullSecrets" . }}
+      imagePullSecrets:
+        - name: {{ template "eric-oss.keycloak-config.pullSecrets" . }}
+      {{- end }}
+      restartPolicy: OnFailure
+      containers:
+        - name: keycloak-client
+          image: {{ template "eric-oss.keycloak-client-path" . }}
+          imagePullPolicy: {{ index .Values "imageCredentials" "keycloak-client" "registry" "imagePullPolicy" }}
+          env:
+          - name: IAM_ADMIN_USER
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.global.iam.adminSecret | quote }}
+                key: {{ .Values.global.iam.userKey | quote }}
+          - name: IAM_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.global.iam.adminSecret | quote }}
+                key: {{ .Values.global.iam.passwordKey | quote }}
+          args:
+          - "create"
+          - "user"
+          - "--keycloak_hostname={{ .Values.global.hosts.iam }}"
+          - "--keycloak_user=$(IAM_ADMIN_USER)"
+          - "--keycloak_password=$(IAM_ADMIN_PASSWORD)"
+          - "--username={{ .Values.gas.defaultUser.username }}"
+          - "--password={{ .Values.gas.defaultUser.password }}"
+          volumeMounts:
+          - name: create-cacert-volume
+            mountPath: /mnt/certs
+          securityContext:
+            allowPrivilegeEscalation: true
+            runAsNonRoot: false
+            runAsUser: 0
+      {{- include "eric-oss.nodeSelector" .| indent 6 }}
+      volumes:
+      - name: create-cacert-volume
+        secret:
+          secretName: {{ .Values.global.iam.cacert.secretName }}
+          items:
+            - key: {{ .Values.global.iam.cacert.key }}
+              path: {{ .Values.global.iam.cacert.filePath }}
+{{- end -}}

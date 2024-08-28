@@ -1,0 +1,32 @@
+{{- if (index .Values "eric-eo-subsystem-management")}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eric-eo-ssm-config
+  labels:
+    {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+    {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+data:
+  {{if or .Values.tags.so .Values.tags.uds}}
+  bootstrapServers: {{ index .Values "eric-eo-subsystem-management" "kafka" "bootstrapServers" | quote }}
+  {{else}}
+  bootstrapServers: 'false'
+  {{end}}
+  {{if  (index .Values "eric-eo-subsystem-management" "kafka" "topics")}}
+  concurrency: {{ index .Values "eric-eo-subsystem-management" "kafka" "topics" "resources" "consumer" "concurrency" | quote | toString }}
+  replicationFactor: {{ index .Values "eric-eo-subsystem-management" "kafka" "topics" "resources" "replicationFactor" | quote | toString }}
+  partitionsNumber: {{ index .Values "eric-eo-subsystem-management" "kafka" "topics" "resources" "partitionsNumber" | quote | toString }}
+  {{else}}
+  concurrency: '1'
+  replicationFactor: '1'
+  partitionsNumber: '1'
+  {{end}}
+  {{if  (index .Values "eric-eo-subsystem-management" "notificationServiceEventProducer" "enabled")}}
+  notification_enable: {{ index .Values "eric-eo-subsystem-management" "notificationServiceEventProducer" "enabled" | quote | toString }}
+  notification_topic: {{ index .Values "eric-eo-subsystem-management" "notificationServiceEventProducer" "topic" | quote | toString }}
+  {{else}}
+  notification_enable: 'false'
+  notification_topic: 'event'
+  {{end}}
+{{- end -}}

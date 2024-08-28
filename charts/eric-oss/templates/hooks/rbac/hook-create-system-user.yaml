@@ -1,0 +1,94 @@
+#
+# COPYRIGHT Ericsson 2021
+#
+#
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Inc. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+#
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "eric-oss.name" . }}-create-system-user-hook
+  labels:
+    {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+    {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+    "helm.sh/hook": post-install, post-upgrade, post-rollback
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ template "eric-oss.name" . }}
+    spec:
+      serviceAccountName: {{ template "eric-oss.name" . }}-sa
+      {{- if include "eric-oss.keycloak-config.pullSecrets" . }}
+      imagePullSecrets:
+        - name: {{ template "eric-oss.keycloak-config.pullSecrets" . }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+        - name: keycloak-client
+          image: {{ template "eric-oss.keycloak-client-path" . }}
+          imagePullPolicy: {{ .Values.imageCredentials.pullPolicy }}
+          resources:
+            requests:
+              memory: {{ index .Values "eric-oss-create-system-user-hook" "resources" "requests" "memory" }}
+              cpu: {{ index .Values "eric-oss-create-system-user-hook" "resources" "requests" "cpu" }}
+            limits:
+              memory: {{ index .Values "eric-oss-create-system-user-hook" "resources" "limits" "memory" }}
+              cpu: {{ index .Values "eric-oss-create-system-user-hook" "resources" "limits" "cpu" }}
+          env:
+          - name: IAM_ADMIN_USER
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.global.iam.adminSecret | quote }}
+                key: {{ .Values.global.iam.userKey | quote }}
+          - name: IAM_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.global.iam.adminSecret | quote }}
+                key: {{ .Values.global.iam.passwordKey | quote }}
+          - name: SYSTEM_USER
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.global.systemUser.secret | quote }}
+                key: {{ .Values.global.systemUser.userKey | quote }}
+          - name: SYSTEM_USER_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.global.systemUser.secret | quote }}
+                key: {{ .Values.global.systemUser.passwordKey | quote }}
+          args:
+          - "create"
+          - "user"
+          - "--keycloak_hostname={{ .Values.global.hosts.iam }}"
+          - "--keycloak_user=$(IAM_ADMIN_USER)"
+          - "--keycloak_password=$(IAM_ADMIN_PASSWORD)"
+          - "--username=$(SYSTEM_USER)"
+          - "--password=$(SYSTEM_USER_PASSWORD)"
+          volumeMounts:
+          - name: create-cacert-volume
+            mountPath: /mnt/certs
+          securityContext:
+            allowPrivilegeEscalation: true
+            runAsNonRoot: false
+            runAsUser: 0
+      {{- include "eric-oss.nodeSelector" .| indent 6 }}
+      volumes:
+      - name: create-cacert-volume
+        secret:
+          secretName: {{ .Values.global.iam.cacert.secretName }}
+          items:
+            - key: {{ .Values.global.iam.cacert.key }}
+              path: {{ .Values.global.iam.cacert.filePath }}

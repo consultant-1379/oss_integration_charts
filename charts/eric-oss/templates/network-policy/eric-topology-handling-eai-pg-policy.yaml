@@ -1,0 +1,22 @@
+{{- if .Values.global.networkPolicy.enabled -}}
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: {{ template "eric-oss.name" . }}-eai-pg-policy
+  labels:
+  {{- include "eric-oss.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+  {{- include "eric-oss.helm-annotations" .| nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: eric-topology-handling-data
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: eric-topology-handling-data
+    - podSelector:
+        matchLabels:
+          app: eai
+{{- end }}
